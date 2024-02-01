@@ -1,5 +1,6 @@
+import { Point } from "./Point";
+const EPSILON = 0.0001;
 export function getStrokeGeometry(points, attrs) {
-
   // trivial reject
   if (points.length < 2) {
     return;
@@ -11,13 +12,11 @@ export function getStrokeGeometry(points, attrs) {
   var miterLimit = attrs.miterLimit || 10;
   var vertices = [];
   var middlePoints = [];  // middle points per each line segment.
-  var closed = false;
 
   if (points.length === 2) {
     join = "bevel";
     createTriangles(points[0], Point.Middle(points[0], points[1]), points[1], vertices, lineWidth, join, miterLimit);
   } else {
-
     var i;
     for (i = 0; i < points.length - 1; i++) {
       if (i === 0) {
@@ -34,46 +33,44 @@ export function getStrokeGeometry(points, attrs) {
     }
   }
 
-  if (!closed) {
+  if (cap === "round") {
+    //头部点
+    var p00 = vertices[0];
+    var p01 = vertices[1];
+    var p02 = points[1];
+    var p10 = vertices[vertices.length - 1];
+    var p11 = vertices[vertices.length - 3];
+    var p12 = points[points.length - 2];
 
-    if (cap === "round") {
+    createRoundCap(points[0], p00, p01, p02, vertices);
+    createRoundCap(points[points.length - 1], p10, p11, p12, vertices);
 
-      var p00 = vertices[0];
-      var p01 = vertices[1];
-      var p02 = points[1];
-      var p10 = vertices[vertices.length - 1];
-      var p11 = vertices[vertices.length - 3];
-      var p12 = points[points.length - 2];
+  } else if (cap === "square") {
 
-      createRoundCap(points[0], p00, p01, p02, vertices);
-      createRoundCap(points[points.length - 1], p10, p11, p12, vertices);
+    var p00 = vertices[vertices.length - 1];
+    var p01 = vertices[vertices.length - 3];
 
-    } else if (cap === "square") {
-
-      var p00 = vertices[vertices.length - 1];
-      var p01 = vertices[vertices.length - 3];
-
-      createSquareCap(
-        vertices[0],
-        vertices[1],
-        Point.Sub(points[0], points[1]).normalize().scalarMult(Point.Sub(points[0], vertices[0]).length()),
-        vertices);
-      createSquareCap(
-        p00,
-        p01,
-        Point.Sub(points[points.length - 1], points[points.length - 2]).normalize().scalarMult(Point.Sub(p01, points[points.length - 1]).length()),
-        vertices);
-    }
+    createSquareCap(
+      vertices[0],
+      vertices[1],
+      Point.Sub(points[0], points[1]).normalize().scalarMult(Point.Sub(points[0], vertices[0]).length()),
+      vertices);
+    createSquareCap(
+      p00,
+      p01,
+      //扩展一个lineWidth/2
+      Point.Sub(points[points.length - 1], points[points.length - 2]).normalize().scalarMult(Point.Sub(p01, points[points.length - 1]).length()),
+      vertices);
   }
 
   return vertices;
 }
 export function createSquareCap(p0, p1, dir, verts) {
-
+  //顺时针
   verts.push(p0);
   verts.push(Point.Add(p0, dir));
   verts.push(Point.Add(p1, dir));
-
+ //逆时针
   verts.push(p1);
   verts.push(Point.Add(p1, dir));
   verts.push(p0);
@@ -112,12 +109,13 @@ export function createRoundCap(center, _p0, _p1, nextPointInLine, verts) {
       }
   }
 
-  var nsegments = (Math.abs(angleDiff * radius) / 7) >> 0;
+  var nsegments = (Math.abs(angleDiff * radius) / 3) >> 0;
   nsegments++;
 
   var angleInc = angleDiff / nsegments;
 
   for (var i = 0; i < nsegments; i++) {
+    //逆时针
       verts.push(new Point(center.x, center.y));
       verts.push(new Point(
               center.x + radius * Math.cos(orgAngle0 + angleInc * i),
